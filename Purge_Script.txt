@@ -1,0 +1,31 @@
+If ((Get-PSSnapin -Name Microsoft.Exchange.Management.PowerShell.E2010 -ErrorAction SilentlyContinue) -eq $Null) {
+    Add-PsSnapin Microsoft.Exchange.Management.PowerShell.E2010
+}
+
+$report = @()
+
+$databases = Get-MailboxDatabase |? {$_.Identity -match "xxxxxxx"}
+
+foreach($database in $databases)
+{
+$mailboxes = @(Get-mailbox -Database $database -ResultSize Unlimited)
+
+foreach ($mailbox in $mailboxes)
+{
+    $recoverstats1 = Get-MailboxFolderStatistics $mailbox -FolderScope RecoverableItems| ? {$_.Identity -match "Recoverable Items"}    
+    $recoverstats2 = Get-MailboxFolderStatistics $mailbox -FolderScope RecoverableItems| ? {$_.Identity -match "Purges"}
+    
+    $recoverstats3= ($recoverstats1.FolderAndSubfolderSize.ToGB())    
+    $recoverstats4= ($recoverstats2.FolderSize.ToGB() )
+
+    If (($recoverstats3 -gt 25) -or ($recoverstats4 -gt 25))
+{
+    $mbObj = New-Object PSObject
+    $mbObj | Add-Member -MemberType NoteProperty -Name "Display Name" -Value $mailbox.DisplayName
+    $mbObj | Add-Member -MemberType NoteProperty -Name "Recoverable Items Size (GB)" -Value ($recoverstats1.FolderAndSubfolderSize.ToGB())
+    $mbObj | Add-Member -MemberType NoteProperty -Name "Purge Size (GB)" -Value ($recoverstats2.FolderSize.ToGB())
+    $report += $mbObj
+}
+}
+}
+$report |  sort-object "Recoverable Items Size (GB)" -Descending | Export-Csv -path 'xxxxxxxx'
